@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 The MIT License (MIT)
 
 Copyright (c) 2016 Tito Ingargiola
+=======
+MIT License
+
+Copyright (c) 2020 Dávid Majerčák
+>>>>>>> 7a4bbf81cc9bedd36a4d0352356cd49f6dbb2f7b
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -18,4 +24,8 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+<<<<<<< HEAD
 SOFTWARE.
+=======
+SOFTWARE.
+>>>>>>> 7a4bbf81cc9bedd36a4d0352356cd49f6dbb2f7b

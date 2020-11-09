@@ -29,9 +29,9 @@ class DefaultMarketDataSource(data.BaseMarketDataSource):
         """Gets the next data in time from file
 
         Returns:
-            DefaultMarketData: 
+            DefaultMarketData: instruments prices in next time step
         """
-        return next(self._data_iterator)
+        return next(self._data_iterator)[1]
 
     def get_data_at(self, time):
         """Gets market data at given time

@@ -134,6 +134,10 @@ class BaseTradingEnv(gym.Env, metaclass=ABCMeta):
             for prop in self._config.OBSERVED_SYMBOL_PROPS
             for value in data.entries.values()
         ]
-        selected_props = np.array([self._net_worth, *selected_props])
+        portfolio_one_hot = [
+            self._portfolio.get(symbol, 0)
+            for symbol in self._config.DATA_SOURCE.symbols()
+        ]
+        selected_props = np.array([self._liquidity, *portfolio_one_hot, *selected_props])
 
         return selected_props

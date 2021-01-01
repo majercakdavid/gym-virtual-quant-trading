@@ -19,7 +19,7 @@ class DefaultMarketDataSource(data.BaseMarketDataSource):
         
         self._data          = {}                        # type: OrderedDict[datetime, DefaultMarketData]
         self._symbols       = set()                     # type: Set[str]
-        self._data_iterator = iter(self._data.items())  # type: dict_items
+        self._data_iterator = iter(self._data.values()) # type: dict_items
         
         default_csv_data_path = os.path.join(os.path.dirname(__file__), 'all_stocks_5yr.csv')
         with open(default_csv_data_path, newline='') as csv_contents:
@@ -31,7 +31,10 @@ class DefaultMarketDataSource(data.BaseMarketDataSource):
         Returns:
             DefaultMarketData: instruments prices in next time step
         """
-        return next(self._data_iterator)[1]
+        return next(self._data_iterator, None)
+
+    def reset(self):
+        self._data_iterator = iter(self._data.values())
 
     def get_data_at(self, time):
         """Gets market data at given time
@@ -68,4 +71,4 @@ class DefaultMarketDataSource(data.BaseMarketDataSource):
                 )
 
         self._data = OrderedDict(sorted(data.items()))
-        self._data_iterator = iter(self._data.items())
+        self._data_iterator = iter(self._data.values())

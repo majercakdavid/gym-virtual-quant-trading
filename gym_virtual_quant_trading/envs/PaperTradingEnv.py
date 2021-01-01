@@ -24,18 +24,16 @@ class PaperTradingEnv(BaseTradingEnv):
 
         self._config = paperTradingEnvConfig # type: PaperTradingEnvConfig
 
-    def step(self, symbol, action, amount):
+    def step(self, action):
         """Perform trade operation on the market
 
         Args:
-            symbol (str): Symbol to trade
-            action (BaseTradingEnvActions): Type of the trade
-            amount (float): Amount to trade
+            action (List[BaseTradingEnvActions]/List[tuple(BaseTradingEnvActions, int)]): Type of the trade and amount of shares to trade (default: 1)
 
         Returns:
             float: reward for executed action
         """
-        return super(PaperTradingEnv, self).step(symbol, action, amount)
+        return super(PaperTradingEnv, self).step(action)
 
     def reset(self):
         """Resets environment before next episode"""

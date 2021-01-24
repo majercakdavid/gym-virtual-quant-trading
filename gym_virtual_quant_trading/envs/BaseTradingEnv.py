@@ -133,24 +133,23 @@ class BaseTradingEnv(gym.Env, metaclass=ABCMeta):
         }
 
         # Naive reward:
-        #   Do not sell and buy same stock at one time
         #   Do not sell more than you own
         #   Do not buy more than you can afford (but encourage the system to buy more)
-        reward_bs   = -len(set(sells.keys()).intersection(buys.keys()))                     # type: int
-        
-        reward_sell = -len([                                                                # type: int 
-            max(
+        reward_sell = [                                                                # type: int 
+            min(
                 0, sum([p[1] for p in self._portfolio[sell[0]]]) - sell[1]
             ) for sell in sells.items()
-        ])
-        reward_buy = 0 if (self._liquidity - sum([                                  # type: int
+        ]
+        reward_sell = sum(reward_sell) if sum(reward_sell) < 0 else len(sells)
+
+        reward_buy = len(buys) if (self._liquidity - sum([                                  # type: int
             observation.entries[symbol].open*amount for symbol, amount in buys.items()
         ])) > 0 else -len(buys)
                                           
         new_portfolio = deepcopy(self._portfolio)
         liquidity_diff = 0
         trade_gains = 0
-        if reward_sell == 0:
+        if reward_sell >= 0:
             for symbol, amount in sells.items():
                 to_sell = amount
                 liquidity_diff += observation.entries[symbol].open*amount
@@ -168,21 +167,21 @@ class BaseTradingEnv(gym.Env, metaclass=ABCMeta):
                             observation.entries[symbol].open - new_portfolio[symbol][0][2]
                         )
 
-                        to_sell = 0 
                         new_portfolio[symbol][0][1] -= to_sell
-        reward_sell = len(sells)
+                        to_sell = 0 
         
         if reward_buy >= 0:
             for symbol, amount in buys.items():
                 liquidity_diff -= observation.entries[symbol].open*amount
                 new_portfolio[symbol].append([observation.time, amount, observation.entries[symbol].open])
 
+        debug   = {}                                                                        # type: Dict
+        reward  = reward_sell + reward_buy                                      # type: int initial reward
+        reward += trade_gains
+        reward += self._get_portfolio_value(new_portfolio, observation) - self._get_portfolio_value(self._portfolio, observation)
+
         self._liquidity += liquidity_diff 
         self._portfolio = new_portfolio
-
-        debug   = {}                                                                        # type: Dict
-        reward  = reward_bs + reward_sell + reward_buy                                      # type: int initial reward
-        reward += trade_gains
 
         return self._create_observation_space(observation), reward, done, debug
         
@@ -201,8 +200,10 @@ class BaseTradingEnv(gym.Env, metaclass=ABCMeta):
         data = next(self._config.DATA_SOURCE)   # type: data.DefaultMarketData
         return self._create_observation_space(data)
 
-    def _get_portfolio_value(self, portfolio):
-        return sum([trade[1]*trade[2] for symbol_trades in portfolio.values() for trade in symbol_trades])
+    def _get_portfolio_value(self, portfolio, observation = None):
+        return sum([trade[1]*(
+            trade[2] if observation is None else observation.entries[symbol].open
+            ) for symbol, symbol_trades in portfolio.items() for trade in symbol_trades])
 
     def _create_observation_space(self, data):
         """Performs an observation of environment

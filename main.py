@@ -4,6 +4,7 @@ import random
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from datetime import datetime
 from collections import namedtuple
 from itertools import count
 from PIL import Image
@@ -14,10 +15,13 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as T
 
+from torch.utils.tensorboard import SummaryWriter
+
 from gym_virtual_quant_trading.envs.PaperTradingEnv import PaperTradingEnv, PaperTradingEnvConfig
 from agents.DQN import DQN
 from agents.DDPG import DDPG
-from agents.ReplayMemory import ReplayMemory, Transition
+from agents.utils.ReplayMemory import ReplayMemory, Transition
+from agents.noise.OrnsteinUhlenbeckNoise import OrnsteinUhlenbeckNoise
 
 env_cfg = PaperTradingEnvConfig()
 env = PaperTradingEnv(env_cfg)
@@ -25,57 +29,31 @@ env = PaperTradingEnv(env_cfg)
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def prepare_data(data):
-    transforms = T.Compose([
-        T.ToTensor()
-    ])
-    transforms(data).unsqueeze(0).to(device)
-
 BATCH_SIZE = 32
 GAMMA = 0.6
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200
 PRINT_LOSS = 100
 
-# Get screen size so that we can initialize layers correctly based on shape
-# returned from AI gym. Typical dimensions at this point are close to 3x40x90
-# which is the result of a clamped and down-scaled render buffer in get_screen()
 init_data = env.reset()
 _, in_size = init_data.shape
 
 # Get number of actions from gym action space
 n_actions = env.action_space.shape[-1]
 
-ddpg = DDPG(in_size=in_size, action_space_size=n_actions, gamma=GAMMA, actor_lr=1e-6, critic_lr=1e-6)
+net_noise = OrnsteinUhlenbeckNoise(n_actions)
+net = DDPG(
+    in_size=in_size, 
+    action_space_size=n_actions, 
+    gamma=GAMMA, 
+    actor_lr=1e-6, 
+    critic_lr=1e-6, 
+    noise=net_noise)
 
-# policy_net = DQN(input_dim=(y, x), output_dim=n_actions).to(device)
-# target_net = DQN(input_dim=(y, x), output_dim=n_actions).to(device)
-# target_net.load_state_dict(policy_net.state_dict())
-# target_net.eval()
+run_id = "{}_{}_{:%Y%m%dT%H%M}".format(
+        net.__class__.__name__, env_cfg.DATA_SOURCE.__class__.__name__, datetime.now())
+summary_writer = SummaryWriter(log_dir='./.cache/tensorboard', filename_suffix=run_id)
 
-# optimizer = optim.RMSprop(policy_net.parameters())
+
 memory = ReplayMemory(10000)
-
-steps_done = 0
-
-def select_action(state, policy_net):
-    global steps_done
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
-    if sample > eps_threshold:
-        with torch.no_grad():
-            # t.max(1) will return largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            policy_action = policy_net(state)
-
-            return policy_action.view(-1)
-    else:
-        return (torch.rand(3)*2-1).to(device)
-
 episode_loss_value = []
 
 def plot_episode():
@@ -120,7 +98,7 @@ def plot_episode():
     # plt.pause(0.001)  # pause a bit so that plots are updated
 
 
-num_episodes = 50
+num_episodes = 5000
 for i_episode in range(num_episodes):
     # Initialize the environment and state
     state = env.reset()
@@ -130,7 +108,7 @@ for i_episode in range(num_episodes):
 
     for t in count():
         # Select and perform an action
-        action = select_action(state, ddpg.actor)
+        action = net.select_action(state)
         next_state, reward, done, _ = env.step(action.data.cpu().numpy())
         
         mask = torch.tensor([done], device=device)
@@ -145,17 +123,26 @@ for i_episode in range(num_episodes):
 
         # Perform one step of the optimization (on the target network)
         if len(memory) > BATCH_SIZE:
-            value_loss, policy_loss = ddpg.update_params(memory.sample(BATCH_SIZE))
-            episode_loss_value.append([value_loss, policy_loss, env._liquidity, env._get_portfolio_value(env._portfolio), reward.data.cpu()[0]])
+            value_loss, policy_loss = net.update_params(memory.sample(BATCH_SIZE))
+            portfolio_value = env._get_portfolio_value(env._portfolio)
+
+            episode_loss_value.append([value_loss, policy_loss, env._liquidity, portfolio_value, reward.data.cpu()[0]])
+
+            summary_writer.add_scalar('train/reward', reward, i_episode)
+            summary_writer.add_scalar('train/loss/value', value_loss, i_episode)
+            summary_writer.add_scalar('train/loss/policy', policy_loss, i_episode)
+            summary_writer.add_scalar('train/liquidity', env._liquidity, i_episode)
+            summary_writer.add_scalar('train/portfolio_value', portfolio_value, i_episode)
+
             if t%PRINT_LOSS == 0:
                 print(f'Value loss: {value_loss}, Policy loss: {policy_loss}')
 
         if done:
-            plot_episode()
             break
+
+    summary_writer.flush()
+summary_writer.close()
 
 print('Complete')
 env.render()
 env.close()
-plt.ioff()
-plt.show()
